@@ -56,8 +56,8 @@ def main():
     parser.add_argument('-o', '--output', dest='output_path', type=str, required=True, \
         help='Path to the n5 directory')
 
-    parser.add_argument('-d', '--data_set', dest='data_set', type=str, default="", \
-        help='Path to output data set (default empty, so /s0 is created at the root)')
+    parser.add_argument('-d', '--data_set', dest='data_set', type=str, default="/s0", \
+        help='Path to output data set (default is /s0)')
 
     parser.add_argument('-c', '--chunk_size', dest='chunk_size', type=str, \
         help='Comma-delimited list describing the chunk size. Default is 512,512,512.', default="512,512,512")
@@ -91,7 +91,7 @@ def main():
         pbar = ProgressBar()
         pbar.register()
 
-    tif_series_to_n5_volume(args.input_path, args.output_path, args.data_set+"/s0", \
+    tif_series_to_n5_volume(args.input_path, args.output_path, args.data_set, \
         chunk_size=[int(c) for c in args.chunk_size.split(',')])
 
 
