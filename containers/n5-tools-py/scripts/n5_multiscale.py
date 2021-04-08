@@ -28,6 +28,8 @@ def add_multiscale(input_path, data_set, downsampling_factors=(2,2,2), \
         if idx==0: continue
         print(f'Saving level {idx}')
         m.data.to_zarr(store, component=f'{data_set}/s{idx}', overwrite=True)
+        z = zarr.open(store, path=f'{data_set}/s{idx}', mode='a')
+        z.attrs["downsamplingFactors"] = np.power(downsampling_factors, idx)
         
     print("Added multiscale to", input_path)
 
@@ -48,6 +50,9 @@ def main():
         help='Run with distributed scheduler (default)')
     parser.set_defaults(distributed=False)
 
+    parser.add_argument('--workers', dest='workers', type=int, default=20, \
+        help='If --distributed is set, this specifies the number of workers (default 20)')
+
     parser.add_argument('--dashboard', dest='dashboard', action='store_true', \
         help='Run a web-based dashboard on port 8787')
     parser.set_defaults(dashboard=False)
@@ -61,7 +66,8 @@ def main():
             print(f"Starting dashboard on {dashboard_address}")
 
         from dask.distributed import Client
-        client = Client(processes=True, n_workers=20, threads_per_worker=1, dashboard_address=dashboard_address)
+        client = Client(processes=True, n_workers=args.workers, \
+            threads_per_worker=1, dashboard_address=dashboard_address)
         client.cluster
         
     else:

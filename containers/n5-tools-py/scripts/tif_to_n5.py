@@ -66,6 +66,9 @@ def main():
         help='Run with distributed scheduler (default)')
     parser.set_defaults(distributed=False)
 
+    parser.add_argument('--workers', dest='workers', type=int, default=20, \
+        help='If --distributed is set, this specifies the number of workers (default 20)')
+
     parser.add_argument('--dashboard', dest='dashboard', action='store_true', \
         help='Run a web-based dashboard on port 8787')
     parser.set_defaults(dashboard=False)
@@ -79,7 +82,8 @@ def main():
             print(f"Starting dashboard on {dashboard_address}")
 
         from dask.distributed import Client
-        client = Client(processes=True, n_workers=20, threads_per_worker=1, dashboard_address=dashboard_address)
+        client = Client(processes=True, n_workers=args.workers, \
+            threads_per_worker=1, dashboard_address=dashboard_address)
         client.cluster
         
     else:

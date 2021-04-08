@@ -24,7 +24,8 @@ process convert_tif_to_n5 {
 
     script:
     """
-    /entrypoint.sh tif_to_n5 -i $input_path -o output.n5 -c $chunk_size --distributed
+    /entrypoint.sh tif_to_n5 -i $input_path -o output.n5 -c $chunk_size 
+    #--distributed
     """
 
 }
