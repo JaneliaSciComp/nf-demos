@@ -11,27 +11,34 @@ params.outdir = ""
 // chunk size for n5
 params.chunk_size = "512,512,512"
 
+input_path = file(params.input_path)
+outdir = file(params.outdir)
+chunk_size = params.chunk_size
+
 process convert_tif_to_n5 {
     container "janeliascicomp/n5-tools-py:1.0.0"
-    publishDir "${params.outdir}", mode: 'copy'
+    publishDir outdir
+
+    memory '64 GB'
+    cpus 8
 
     input:
-    val(input_path)
-    val(chunk_size)
+    file input_path
+    file outdir
+    val chunk_size
 
     output:
     file "output.n5"
 
     script:
     """
-    /entrypoint.sh tif_to_n5 -i $input_path -o output.n5 -c $chunk_size 
-    #--distributed
+    cp $input_path output.n5
+    #/entrypoint.sh tif_to_n5 -i $input_path -o output.n5 -c $chunk_size --distributed
     """
-
 }
 
 workflow {
-    convert_tif_to_n5(params.input_path, params.chunk_size)
+    convert_tif_to_n5(input_path, outdir, chunk_size)
 }
 
 
