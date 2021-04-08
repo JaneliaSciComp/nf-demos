@@ -9,6 +9,9 @@ RUN conda create -n myenv -c conda-forge python=3.7 tqdm numpy=1.19.4 scikit-ima
     # It's necessary to set TMPDIR for running with Singularity, because /opt/conda will be read-only
     && echo "export TMPDIR=/tmp" > /opt/conda/envs/myenv/etc/conda/activate.d/env_vars.sh
 
+# ps is needed by nextflow to collect task metrics
+RUN apt-get install -y procps
+
 COPY scripts /app
 
 #ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "myenv", "python", "run.py"]
