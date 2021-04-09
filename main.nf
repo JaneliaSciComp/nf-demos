@@ -20,7 +20,7 @@ process convert_tif_to_n5 {
     publishDir outdir
 
     memory '64 GB'
-    cpus 8
+    cpus 10
 
     input:
     file input_path
@@ -32,8 +32,7 @@ process convert_tif_to_n5 {
 
     script:
     """
-    cp $input_path output.n5
-    #/entrypoint.sh tif_to_n5 -i $input_path -o output.n5 -c $chunk_size --distributed
+    /entrypoint.sh tif_to_n5 -i $input_path -o output.n5 -c $chunk_size --distributed
     """
 }
 
