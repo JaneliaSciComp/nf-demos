@@ -11,8 +11,8 @@ params.output_path = ""
 // chunk size for n5
 params.chunk_size = "512,512,512"
 
-input_path = file(params.input_path)
-output_path = file(params.output_path)
+input_path = params.input_path
+output_path = params.output_path
 chunk_size = params.chunk_size
 
 process convert_tif_to_n5 {
@@ -22,8 +22,8 @@ process convert_tif_to_n5 {
     cpus 10
 
     input:
-    file input_path
-    file output_path
+    val input_path
+    val output_path
     val chunk_size
 
     script:
