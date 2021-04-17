@@ -24,7 +24,7 @@ params.compression = "GZIP"
 params.mem_gb = 32
 params.cpus = 10
 
-// config for running on spark cluster
+// config for running on cluster
 params.spark_container_repo = "janeliascicomp"
 params.spark_container_name = "n5-tools-spark"
 params.spark_container_version = "1.0.0"
