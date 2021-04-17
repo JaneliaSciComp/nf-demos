@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import numpy as np 
 import zarr 
 import dask_image.imread
 import dask.array as da
@@ -84,7 +83,7 @@ def main():
         from dask.distributed import Client
         client = Client(processes=True, n_workers=args.workers, \
             threads_per_worker=1, dashboard_address=dashboard_address)
-        client.cluster
+        #client.cluster
         
     else:
         from dask.diagnostics import ProgressBar
