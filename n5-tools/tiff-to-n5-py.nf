@@ -30,6 +30,9 @@ process tif_to_n5 {
     input:
     tuple val(inputDirPath), val(outputN5Path), val(outputDatasetPath), val(blockSize)
 
+    output:
+    tuple val(outputN5Path), val(outputDatasetPath)
+    
     script:
     """
     /entrypoint.sh tif_to_n5 -i $inputDirPath -o $outputN5Path -d $outputDatasetPath -c $blockSize
@@ -41,6 +44,9 @@ process tif_to_n5_cluster {
 
     input:
     tuple val(inputDirPath), val(outputN5Path), val(outputDatasetPath), val(blockSize), val(numWorkers)
+
+    output:
+    tuple val(outputN5Path), val(outputDatasetPath)
 
     script:
     """

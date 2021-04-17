@@ -1,10 +1,13 @@
 #!/usr/bin/env python
+'''
+Add multiscale imagery to n5 volume
+'''
 
 import argparse
 import math
-import numpy as np 
+import numpy as np
 import dask.array as da
-import zarr 
+import zarr
 from zarr.errors import PathNotFoundError
 from xarray_multiscale import multiscale
 
@@ -24,7 +27,8 @@ def add_metadata(n5_path, downsampling_factors=(2,2,2), axes=("x","y","z"), pixe
             z = zarr.open(store, path=f'/s{idx}', mode='a')
             z.attrs["downsamplingFactors"] = factors
 
-    z = zarr.open(store, path=f'/', mode='a')
+    # Add metadata at the root
+    z = zarr.open(store, path='/', mode='a')
     z.attrs["scales"] = scales
     if axes:
         z.attrs["axes"] = axes
@@ -52,7 +56,7 @@ def add_multiscale(n5_path, data_set, downsampling_factors=(2,2,2), \
     thumbnail_sized = [np.less_equal(m.shape, thumbnail_size_yx).all() for m in multi]
     cutoff = thumbnail_sized.index(True)
     multi_to_save = multi[0:cutoff + 1]
-    
+
     for idx, m in enumerate(multi_to_save):
         if idx==0: continue
         print(f'Saving level {idx}')
