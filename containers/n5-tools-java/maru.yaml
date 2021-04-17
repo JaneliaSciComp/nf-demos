@@ -1,0 +1,15 @@
+maru_version: 0.1.1
+name: n5-tools-java
+version: 1.0.0
+remotes:
+- janeliascicomp
+build_args:
+  GIT_TAG: master
+template_args:
+  flavor: java_maven
+  build:
+    repo_url: https://github.com/saalfeldlab/n5-spark
+    command: mvn package -P fatjar
+  java_maven:
+    jdk_version: "8"
+    main_class: org.janelia.saalfeldlab.n5.spark.SliceTiffToN5Spark

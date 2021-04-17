@@ -1,9 +1,9 @@
 # Create final image
-FROM continuumio/miniconda3:4.8.2
+FROM condaforge/mambaforge as builder
 
-RUN conda create -n myenv -c conda-forge python=3.7 tqdm numpy=1.19.4 scikit-image=0.17 \
-        zarr=2.7 dask=2021.3.1 dask-image=0.5.0 -y \
-    && conda run -n myenv pip install xarray-multiscale \
+RUN mamba create -n myenv -c conda-forge python=3.8 tqdm numpy=1.20 scikit-image=0.18 \
+        zarr=2.7 dask=2021.4 dask-image=0.5.0 -y \
+    && conda run -n myenv pip install xarray-multiscale fibsem-tools \
     && conda clean --tarballs \
     && mkdir -p /opt/conda/envs/myenv/etc/conda/activate.d \
     # It's necessary to set TMPDIR for running with Singularity, because /opt/conda will be read-only
