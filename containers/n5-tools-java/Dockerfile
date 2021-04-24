@@ -21,6 +21,9 @@ RUN echo "LC_ALL=en_US.UTF-8" >> /etc/environment \
     && echo "LANG=en_US.UTF-8" > /etc/locale.conf \
     && locale-gen en_US.UTF-8
 
+# ps is needed by nextflow to collect task metrics
+RUN apt-get update && apt-get install -y procps
+
 COPY --from=builder /tmp/app/app.jar /app/app.jar
 COPY --from=builder /buildinfo /
 
