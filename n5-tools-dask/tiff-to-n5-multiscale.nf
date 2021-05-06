@@ -28,7 +28,7 @@ params.numWorkers = 10
 
 include {
     tif_to_n5_cluster
-} from './tiff-to-n5-py' 
+} from './tiff-to-n5' 
 
 include {
     n5_multiscale_cluster
