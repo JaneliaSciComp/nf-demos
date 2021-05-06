@@ -17,7 +17,7 @@ def save_tif(filename, img):
         skimage.io.imsave(filename, img)
 
 
-def n5_block_to_tif(n5_path, data_set, output_file, start, end, dtype_override):
+def n5_block_to_tif(n5_path, data_set, output_file, start, end, dtype_override=None):
     '''
     Write a block from the given n5 data set to a TIFF file
     '''
@@ -29,7 +29,7 @@ def n5_block_to_tif(n5_path, data_set, output_file, start, end, dtype_override):
     save_tif(output_file, block)
 
 
-def n5_volume_to_2d_tif_series(n5_path, data_set, output_dir, dtype_override, prefix=''):
+def n5_volume_to_2d_tif_series(n5_path, data_set, output_dir, dtype_override=None, prefix=''):
     '''
     Write n5 volume into 2D TIFF slices
     '''
@@ -81,9 +81,9 @@ def main():
     if args.start_coord and args.end_coord:
         start = tuple([int(d) for d in args.start_coord.split(',')])
         end = tuple([int(d) for d in args.end_coord.split(',')])
-        n5_block_to_tif(args.input_path, args.data_set, args.output_path, start, end, args.dtype)
+        n5_block_to_tif(args.input_path, args.data_set, args.output_path, start, end, dtype_override=args.dtype)
     else:
-        n5_volume_to_2d_tif_series(args.input_path, args.data_set, args.output_path, args.dtype)
+        n5_volume_to_2d_tif_series(args.input_path, args.data_set, args.output_path, dtype_override=args.dtype)
 
 
 if __name__ == "__main__":
