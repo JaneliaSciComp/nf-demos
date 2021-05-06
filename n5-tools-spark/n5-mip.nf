@@ -33,7 +33,7 @@ if (!params.outputPath) {
 process generateMIPs {
     container "janeliascicomp/n5-tools-java:1.0.0"
 
-    memory { params.mem_gb }
+    memory { params.mem_gb+" GB" }
     cpus { params.cpus }
 
     input:
