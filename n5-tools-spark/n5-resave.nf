@@ -85,6 +85,7 @@ process resave {
     """
 }
 workflow {
+    file(params.outputN5Path).mkdirs()
     resave([params.inputN5Path, params.inputDatasetPath, params.outputN5Path, params.outputDatasetPath],
         params.blockSize, params.compression, params.type, params.minValue, params.maxValue, params.force)
 }

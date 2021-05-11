@@ -22,7 +22,7 @@ params.cpus = 10
 params.numWorkers = 0
 
 process tif_to_n5 {
-    container "janeliascicomp/n5-tools-py:1.0.0"
+    container "janeliascicomp/n5-tools-py:1.0.1"
 
     memory { params.mem_gb }
     cpus { params.cpus }

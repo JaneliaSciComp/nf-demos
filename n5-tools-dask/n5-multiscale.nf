@@ -26,7 +26,7 @@ params.numWorkers = 0
 
 
 process n5_multiscale {
-    container "janeliascicomp/n5-tools-py:1.0.0"
+    container "janeliascicomp/n5-tools-py:1.0.1"
 
     memory { params.mem_gb }
     cpus { params.cpus }
@@ -44,7 +44,7 @@ process n5_multiscale {
 }
 
 process n5_multiscale_cluster {
-    container "janeliascicomp/n5-tools-py:1.0.0"
+    container "janeliascicomp/n5-tools-py:1.0.1"
 
     input:
     tuple val(n5Path), val(datasetPath), val(downsamplingFactors), val(pixelRes), val(pixelResUnits), val(numWorkers)

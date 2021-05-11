@@ -145,6 +145,7 @@ workflow {
     }
     else {
         log.debug "Running without cluster"
+        file(params.outputN5Path).mkdirs()
         def my_app_args = [
             params.inputDirPath, 
             params.outputN5Path, 

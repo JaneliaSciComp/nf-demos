@@ -57,12 +57,12 @@ process generateMIPs {
     }
     def args = args_list.join(' ')
     """
-    mkdir -p $outputPath
     /entrypoint.sh org.janelia.saalfeldlab.n5.spark.N5MaxIntensityProjectionSpark $args
     """
 }
 
 workflow {
+    file(outputPath).mkdirs()
     generateMIPs([params.inputN5Path, params.inputDatasetPath, outputPath],
         params.mipStep, params.compression)
 }
