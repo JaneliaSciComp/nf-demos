@@ -58,13 +58,19 @@ def add_multiscale(n5_path, data_set, downsampling_factors=(2,2,2), \
     chunk_size = volume.chunksize
     thumbnail_size_yx = thumbnail_size_yx or chunk_size
     multi = multiscale(volume, downsampling_method, downsampling_factors, chunks=chunk_size)
+    
     thumbnail_sized = [np.less_equal(m.shape, thumbnail_size_yx).all() for m in multi]
-    cutoff = thumbnail_sized.index(True)
-    multi_to_save = multi[0:cutoff + 1]
+    
+    try:
+        cutoff = thumbnail_sized.index(True)
+        multi_to_save = multi[0:cutoff + 1]
+    except ValueError:
+        # All generated versions are larger than thumbnail_size_yx
+        multi_to_save = multi
 
     for idx, m in enumerate(multi_to_save):
         if idx==0: continue
-        print(f'Saving level {idx}')
+        print(f'Saving level {idx} with shape {m.shape}')
         component = f'{data_set}/s{idx}'
 
         m.data.to_zarr(store, 
