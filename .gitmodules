@@ -1,3 +1,6 @@
 [submodule "external-modules/spark"]
 	path = external-modules/spark
 	url = https://github.com/JaneliaSciComp/nextflow-spark.git
+[submodule "external-modules/dask"]
+	path = external-modules/dask
+	url = git@github.com:JaneliaSciComp/nextflow-dask.git

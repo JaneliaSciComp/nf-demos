@@ -17,60 +17,91 @@ params.pixelRes = "2,2,2"
 // units for pixelRes
 params.pixelResUnits = "nm"
 
-// config for running single process
-params.mem_gb = 32
-params.cpus = 10
+// memory and cpus config - when not using a cluster these value should be larger
+params.mem_gb = 1
+params.cpus = 1
 
-// config for running on cluster
-params.numWorkers = 0
+// config for starting a dask cluster
+params.with_dask_cluster = false
 
-include { getOptions } from '../utils' 
+include {
+    dask_params;
+} from '../params/dask_params';
+
+dask_cluster_params = dask_params() + params
+
+include {
+    CREATE_DASK_CLUSTER;
+} from '../external-modules/dask/workflows/create_dask_cluster' addParams(dask_cluster_params)
+
+include {
+    DASK_CLUSTER_TERMINATE;
+} from '../external-modules/dask/modules/dask/cluster_terminate/main' addParams(dask_cluster_params)
+
+include { get_runtime_opts } from '../utils' 
 
 process n5_multiscale {
-    container "janeliascicomp/n5-tools-py:1.0.1"
-    containerOptions { getOptions([inputPath]) }
+    container { dask_cluster_params.container }
+    containerOptions { get_runtime_opts([inputPath]) }
 
     memory { "${params.mem_gb} GB" }
     cpus { params.cpus }
 
     input:
-    tuple val(inputPath), val(dataset), val(downsamplingFactors), val(pixelRes), val(pixelResUnits)
+    tuple val(inputPath), val(dataset), val(downsamplingFactors), val(pixelRes), val(pixelResUnits), val(scheduler), val(scheduler_workdir)
 
     output:
-    val(inputPath)
+    tuple val(inputPath), val(scheduler), val(scheduler_workdir)
     
     script:
+    def scheduler_arg = scheduler
+        ? "--scheduler ${scheduler}"
+        : ''
+    def n_workers_arg = dask_cluster_params.workers > 0
+        ? "--workers ${dask_cluster_params.workers}"
+        : ''
     """
-    /entrypoint.sh n5_multiscale -i $inputPath -d $dataset -f $downsamplingFactors -p $pixelRes -u $pixelResUnits
-    """
-}
-
-process n5_multiscale_cluster {
-    container "janeliascicomp/n5-tools-py:1.0.1"
-    containerOptions { getOptions([inputPath]) }
-
-    memory { "${params.mem_gb} GB" }
-    cpus { params.cpus }
-
-    input:
-    tuple val(inputPath), val(dataset), val(downsamplingFactors), val(pixelRes), val(pixelResUnits), val(numWorkers)
-
-    output:
-    val(inputPath)
-
-    script:
-    """
-    /entrypoint.sh n5_multiscale -i $inputPath -d $dataset -f $downsamplingFactors -p $pixelRes -u $pixelResUnits \
-        --distributed --workers $numWorkers --dashboard
+    python app/n5_multiscale.py \
+        -i $inputPath -d $dataset \
+        -f $downsamplingFactors -p $pixelRes -u $pixelResUnits \
+        ${n_workers_arg} \
+        ${scheduler_arg}
     """
 }
 
 workflow {
-    if (params.numWorkers>0) {
-        n5_multiscale_cluster([params.inputPath, params.dataset, params.downsamplingFactors, params.pixelRes, params.pixelResUnits, params.numWorkers])
-    }
-    else {
-        n5_multiscale([params.inputPath, params.dataset, params.downsamplingFactors, params.pixelRes, params.pixelResUnits])
-    }
+    if (params.with_dask_cluster) {
+        CREATE_DASK_CLUSTER(file(params.work_dir))
+        | map {
+            log.info "Use dask scheduler: ${it.scheduler_address} (${it.work_dir})"
+            [
+                params.inputPath,
+                params.dataset,
+                params.downsamplingFactors,
+                params.pixelRes,
+                params.pixelResUnits,
+                it.scheduler_address,
+                it.work_dir,
+            ]
+        }
+        | n5_multiscale
+        | groupTuple(by: [1,2])
+        | map { 
+            def (input_paths, scheduler_address, work_dir) = it
+            return work_dir
+        }
+        | DASK_CLUSTER_TERMINATE
+    } else {
+        n5_multiscale(
+            [
+                params.inputPath,
+                params.dataset,
+                params.downsamplingFactors,
+                params.pixelRes,
+                params.pixelResUnits,
+                '', // scheduler address
+                '', // scheduler workdir
+            ]
+        )
+     }
 }
-

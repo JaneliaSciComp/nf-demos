@@ -21,11 +21,11 @@ params.cpus = 10
 // config for running on cluster
 params.numWorkers = 0
 
-include { getOptions } from '../utils' 
+include { get_runtime_opts } from '../utils' 
 
 process tif_to_n5 {
     container "janeliascicomp/n5-tools-py:1.0.1"
-    containerOptions { getOptions([inputPath, outputPath]) }
+    containerOptions { get_runtime_opts([inputPath, outputPath]) }
 
     memory { "${params.mem_gb} GB" }
     cpus { params.cpus }
@@ -44,7 +44,7 @@ process tif_to_n5 {
 
 process tif_to_n5_cluster {
     container "janeliascicomp/n5-tools-py:1.0.0"
-    containerOptions { getOptions([inputPath, outputPath]) }
+    containerOptions { get_runtime_opts([inputPath, outputPath]) }
 
     memory { "${params.mem_gb} GB" }
     cpus { params.cpus }
