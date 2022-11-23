@@ -70,7 +70,7 @@ workflow {
     | map {
         def (cluster_id, scheduler_ip, cluster_work_dir, connected_workers) = it
         [
-            params.inputPath,
+            file(params.inputPath),
             params.dataset,
             params.downsamplingFactors,
             params.pixelRes,

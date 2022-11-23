@@ -66,8 +66,8 @@ workflow {
     | map {
         def (cluster_id, scheduler_ip, cluster_work_dir, connected_workers) = it
         [
-            params.inputPath,
-            params.outputPath,
+            file(params.inputPath),
+            file(params.outputPath),
             params.outputDataset,
             params.blockSize,
             scheduler_ip,

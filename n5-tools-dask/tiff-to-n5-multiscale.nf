@@ -48,15 +48,23 @@ workflow {
     | map {
         def (cluster_id, scheduler_ip, cluster_work_dir, connected_workers) = it
         [
-            params.inputPath, params.outputPath, params.outputDataset, params.blockSize,
-            scheduler_ip, cluster_work_dir,
+            file(params.inputPath),
+            file(params.outputPath),
+            params.outputDataset,
+            params.blockSize,
+            scheduler_ip,
+            cluster_work_dir,
         ]
     }
     | tiff_to_n5
     | map {
         def (n5_path, n5_dataset, scheduler_ip, cluster_work_dir) = it
         [
-            n5_path, "/", params.downsamplingFactors, params.pixelRes, params.pixelResUnits,
+            n5_path,
+            "/",
+            params.downsamplingFactors,
+            params.pixelRes,
+            params.pixelResUnits,
             scheduler_ip, cluster_work_dir,
         ]
     }
