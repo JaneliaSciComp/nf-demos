@@ -15,58 +15,97 @@ params.outputDataset = "/s0"
 params.blockSize = "512,512,512"
 
 // config for running single process
-params.mem_gb = 32
-params.cpus = 10
+params.mem_gb = 1
+params.cpus = 1
 
-// config for running on cluster
-params.numWorkers = 0
+// config for starting a dask cluster
+params.with_dask_cluster = false
+
+include {
+    dask_params;
+} from '../params/dask_params';
+
+dask_cluster_params = dask_params() + params
+
+include {
+    CREATE_DASK_CLUSTER;
+} from '../external-modules/dask/workflows/create_dask_cluster' addParams(dask_cluster_params)
+
+include {
+    DASK_CLUSTER_TERMINATE;
+} from '../external-modules/dask/modules/dask/cluster_terminate/main' addParams(dask_cluster_params)
 
 include { get_runtime_opts } from '../utils' 
 
-process tif_to_n5 {
-    container "janeliascicomp/n5-tools-py:1.0.1"
+process tiff_to_n5 {
+    container { dask_cluster_params.container }
     containerOptions { get_runtime_opts([inputPath, outputPath]) }
 
     memory { "${params.mem_gb} GB" }
     cpus { params.cpus }
 
     input:
-    tuple val(inputPath), val(outputPath), val(outputDataset), val(blockSize)
+    tuple val(inputPath), val(outputPath), val(outputDataset), val(blockSize), val(scheduler), val(scheduler_workdir)
 
     output:
-    tuple val(outputPath), val(outputDataset)
+    tuple val(outputPath), val(outputDataset), val(scheduler), val(scheduler_workdir)
     
     script:
+    def scheduler_arg = scheduler
+        ? "--dask-scheduler ${scheduler}"
+        : ''
     """
-    /entrypoint.sh tif_to_n5 -i $inputPath -o $outputPath -d $outputDataset -c $blockSize
-    """
-}
-
-process tif_to_n5_cluster {
-    container "janeliascicomp/n5-tools-py:1.0.0"
-    containerOptions { get_runtime_opts([inputPath, outputPath]) }
-
-    memory { "${params.mem_gb} GB" }
-    cpus { params.cpus }
-    
-    input:
-    tuple val(inputPath), val(outputPath), val(outputDataset), val(blockSize), val(numWorkers)
-
-    output:
-    tuple val(outputPath), val(outputDataset)
-
-    script:
-    """
-    /entrypoint.sh tif_to_n5 -i $inputPath -o $outputPath -d $outputDataset -c $blockSize \
-        --distributed --workers $numWorkers --dashboard
+    /entrypoint.sh tif_to_n5 \
+        -i $inputPath \
+        -o $outputPath -d $outputDataset -c $blockSize \
+        ${scheduler_arg}
     """
 }
-
 workflow {
-    if (params.numWorkers>0) {
-        tif_to_n5_cluster([params.inputPath, params.outputPath, params.outputDataset, params.blockSize, params.numWorkers])
+    start_cluster
+    | map {
+        def (cluster_id, scheduler_ip, cluster_work_dir, connected_workers) = it
+        [
+            params.inputPath,
+            params.outputPath,
+            params.outputDataset,
+            params.blockSize,
+            scheduler_ip,
+            cluster_work_dir,
+        ]
     }
-    else {
-        tif_to_n5([params.inputPath, params.outputPath, params.outputDataset, params.blockSize])
+    | tiff_to_n5
+    | groupTuple(by: [1,2]) // group all processes that run on the same cluster
+    | map { 
+        def (output_paths, output_datasets, scheduler_address, cluster_work_dir) = it
+        return cluster_work_dir
     }
+    | stop_cluster
+}
+
+workflow start_cluster {
+    main:
+    if (params.with_dask_cluster) {
+        cluster = CREATE_DASK_CLUSTER(file(params.work_dir), [file(params.inputPath), file(params.outputPath)])
+    } else {
+        cluster = Channel.of(['', '', params.work_dir, -1])
+    }
+
+    emit:
+    cluster
+}
+
+workflow stop_cluster {
+    take:
+    work_dir
+
+    main:
+    if (params.with_dask_cluster) {
+        done = DASK_CLUSTER_TERMINATE(work_dir)
+    } else {
+        done = work_dir
+    }
+
+    emit:
+    work_dir
 }

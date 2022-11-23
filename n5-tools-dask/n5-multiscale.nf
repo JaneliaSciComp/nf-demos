@@ -55,53 +55,62 @@ process n5_multiscale {
     
     script:
     def scheduler_arg = scheduler
-        ? "--scheduler ${scheduler}"
-        : ''
-    def n_workers_arg = dask_cluster_params.workers > 0
-        ? "--workers ${dask_cluster_params.workers}"
+        ? "--dask-scheduler ${scheduler}"
         : ''
     """
-    python app/n5_multiscale.py \
+    /entrypoint.sh n5_multiscale \
         -i $inputPath -d $dataset \
         -f $downsamplingFactors -p $pixelRes -u $pixelResUnits \
-        ${n_workers_arg} \
         ${scheduler_arg}
     """
 }
 
 workflow {
+    start_cluster
+    | map {
+        def (cluster_id, scheduler_ip, cluster_work_dir, connected_workers) = it
+        [
+            params.inputPath,
+            params.dataset,
+            params.downsamplingFactors,
+            params.pixelRes,
+            params.pixelResUnits,
+            scheduler_ip,
+            cluster_work_dir,
+        ]
+    }
+    | n5_multiscale
+    | groupTuple(by: [1,2]) // group all processes that run on the same cluster
+    | map { 
+        def (input_paths, scheduler_ip, cluster_work_dir) = it
+        return cluster_work_dir
+    }
+    | stop_cluster
+}
+
+workflow start_cluster {
+    main:
     if (params.with_dask_cluster) {
-        CREATE_DASK_CLUSTER(file(params.work_dir))
-        | map {
-            log.info "Use dask scheduler: ${it.scheduler_address} (${it.work_dir})"
-            [
-                params.inputPath,
-                params.dataset,
-                params.downsamplingFactors,
-                params.pixelRes,
-                params.pixelResUnits,
-                it.scheduler_address,
-                it.work_dir,
-            ]
-        }
-        | n5_multiscale
-        | groupTuple(by: [1,2])
-        | map { 
-            def (input_paths, scheduler_address, work_dir) = it
-            return work_dir
-        }
-        | DASK_CLUSTER_TERMINATE
+        cluster = CREATE_DASK_CLUSTER(file(params.work_dir), [file(params.inputPath)])
     } else {
-        n5_multiscale(
-            [
-                params.inputPath,
-                params.dataset,
-                params.downsamplingFactors,
-                params.pixelRes,
-                params.pixelResUnits,
-                '', // scheduler address
-                '', // scheduler workdir
-            ]
-        )
-     }
+        cluster = Channel.of(['', '', params.work_dir, -1])
+    }
+
+    emit:
+    cluster
+}
+
+workflow stop_cluster {
+    take:
+    work_dir
+
+    main:
+    if (params.with_dask_cluster) {
+        done = DASK_CLUSTER_TERMINATE(work_dir)
+    } else {
+        done = work_dir
+    }
+
+    emit:
+    work_dir
 }

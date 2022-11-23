@@ -9,7 +9,6 @@ import numpy as np
 import dask.array as da
 import zarr
 
-from dask.distributed import Client
 from zarr.errors import PathNotFoundError
 from xarray_multiscale import (multiscale, reducers)
 
@@ -105,14 +104,8 @@ def main():
     parser.add_argument('-u', '--pixel_res_units', dest='pixel_res_units', type=str, default="nm", \
         help='Measurement unit for --pixel_res (default "nm") - required for Neuroglancer')
 
-    parser.add_argument('--scheduler', dest='scheduler', type=str, default=None, \
+    parser.add_argument('--dask-scheduler', dest='dask_scheduler', type=str, default=None, \
         help='Run with distributed scheduler')
-
-    parser.add_argument('--dashboard', dest='dashboard', type=str, default=None, \
-        help='Use this dashboard')
-
-    parser.add_argument('--workers', dest='workers', type=int, default=1, \
-        help='The number of workers')
 
     parser.add_argument('--metadata-only', dest='metadata_only', action='store_true', \
         help='Only fix metadata on an existing multiscale pyramid')
@@ -120,16 +113,11 @@ def main():
 
     args = parser.parse_args()
 
-    if args.scheduler:
-        if args.dashboard: 
-            print(f"Dashboard is available at: {args.dashboard}")
-
-        Client(address=args.scheduler)
+    if args.dask_scheduler:
+        from dask.distributed import Client
+        Client(address=args.dask_scheduler)
     else:
         from dask.diagnostics import ProgressBar
-
-        Client(processes=True, n_workers=args.workers,
-               threads_per_worker=1)
         pbar = ProgressBar()
         pbar.register()
 
