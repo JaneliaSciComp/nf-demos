@@ -75,7 +75,7 @@ workflow {
         ]
     }
     | tiff_to_n5
-    | groupTuple(by: [1,2]) // group all processes that run on the same cluster
+    | groupTuple(by: [2,3]) // group all processes that run on the same cluster
     | map { 
         def (output_paths, output_datasets, scheduler_address, cluster_work_dir) = it
         return cluster_work_dir
