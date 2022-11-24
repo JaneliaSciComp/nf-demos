@@ -4,6 +4,8 @@ import argparse
 import zarr
 import numcodecs as codecs
 import dask_image.imread
+
+from dask.diagnostics import ProgressBar
 from dask.delayed import delayed
 
 
@@ -88,14 +90,18 @@ def main():
 
     if args.dask_scheduler:
         from dask.distributed import Client
-        Client(address=args.dask_scheduler)
+        client = Client(address=args.dask_scheduler)
     else:
-        from dask.diagnostics import ProgressBar
-        pbar = ProgressBar()
-        pbar.register()
+        client = None
+
+    pbar = ProgressBar()
+    pbar.register()
 
     tif_series_to_n5_volume(args.input_path, args.output_path, args.data_set, compressor, \
         chunk_size=[int(c) for c in args.chunk_size.split(',')], dtype=args.dtype)
+
+    if client is not None:
+        client.close()
 
 
 if __name__ == "__main__":

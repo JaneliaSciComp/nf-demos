@@ -9,8 +9,9 @@ import numpy as np
 import dask.array as da
 import zarr
 
-from zarr.errors import PathNotFoundError
+from dask.diagnostics import ProgressBar
 from xarray_multiscale import (multiscale, reducers)
+from zarr.errors import PathNotFoundError
 
 def add_metadata(n5_path, downsampling_factors=(2,2,2), axes=("x","y","z"), pixel_res=None, pixel_res_units="nm"):
     store = zarr.N5Store(n5_path)
@@ -115,11 +116,12 @@ def main():
 
     if args.dask_scheduler:
         from dask.distributed import Client
-        Client(address=args.dask_scheduler)
+        client = Client(address=args.dask_scheduler)
     else:
-        from dask.diagnostics import ProgressBar
-        pbar = ProgressBar()
-        pbar.register()
+        client = None
+
+    pbar = ProgressBar()
+    pbar.register()
 
     downsampling_factors = [int(c) for c in args.downsampling_factors.split(',')]
 
@@ -131,6 +133,9 @@ def main():
         add_multiscale(args.input_path, args.data_set, downsampling_factors=downsampling_factors)
 
     add_metadata(args.input_path, downsampling_factors=downsampling_factors, pixel_res=pixel_res, pixel_res_units=args.pixel_res_units)
+
+    if client is not None:
+        client.close()
 
 
 if __name__ == "__main__":
