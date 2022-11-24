@@ -52,7 +52,7 @@ process n5_multiscale {
 
     output:
     tuple val(inputPath), val(scheduler), val(scheduler_workdir)
-    
+
     script:
     def scheduler_arg = scheduler
         ? "--dask-scheduler ${scheduler}"
