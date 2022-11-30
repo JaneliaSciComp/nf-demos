@@ -8,5 +8,4 @@ n5-tools-dask/tiff-to-n5-multiscale.nf \
     --with_dask_cluster \
     --workers 7 \
     --required_workers 4 \
-    --worker_mem_gb_per_core 2 \
-    --work_dir local/test
+    --worker_mem_gb_per_core 2
