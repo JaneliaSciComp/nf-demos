@@ -41,7 +41,7 @@ include {
 include { get_runtime_opts } from '../utils' 
 
 process n5_multiscale {
-    container { dask_cluster_params.container }
+    container { dask_cluster_params.dask_container }
     containerOptions { get_runtime_opts([inputPath]) }
 
     memory { "${params.mem_gb} GB" }

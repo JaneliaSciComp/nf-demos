@@ -38,7 +38,7 @@ include {
 include { get_runtime_opts } from '../utils' 
 
 process tiff_to_n5 {
-    container { dask_cluster_params.container }
+    container { dask_cluster_params.dask_container }
     containerOptions { get_runtime_opts([inputPath, file(outputPath).parent]) }
 
     memory { "${params.mem_gb} GB" }
