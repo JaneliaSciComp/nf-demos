@@ -79,7 +79,8 @@ workflow {
 workflow start_cluster {
     main:
     if (params.with_dask_cluster) {
-        cluster = CREATE_DASK_CLUSTER(file(params.work_dir), [file(params.inputPath), file(params.outputPath).parent])
+        cluster = CREATE_DASK_CLUSTER(file(params.work_dir), 
+                                      Channel.of([file(params.inputPath), file(params.outputPath).parent]))
     } else {
         cluster = Channel.of(['', '', params.work_dir, -1])
     }
