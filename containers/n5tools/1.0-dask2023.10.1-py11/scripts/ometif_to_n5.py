@@ -30,7 +30,6 @@ def _ometif_to_n5_volume(input_path, output_path,
             return
         tif_series = tif.series[0]
         data_shape = tif_series.shape
-        data_shape = (184, 2, 128, 128) # !!!!!!
         data_type = tif_series.dtype
         dims = [d for d in tif_series.axes.lower()
                                 .replace('i', 'z')
@@ -83,21 +82,22 @@ def _ometif_to_n5_volume(input_path, output_path,
 
     print(f'Saving {nblocks} blocks to {output_path}', flush=True)
 
-    n_saved_blocks = 0
+    persisted_blocks = []
     for block_index in np.ndindex(*nblocks):
         block_start = block_size * block_index
         block_stop = np.minimum(data_shape, block_start + block_size)
-        block_slices = tuple([slice(start, stop) 
+        block_slices = tuple([slice(start, stop)
                               for start, stop in zip(block_start, block_stop)])
+        block_shape = tuple([s.stop - s.start for s in block_slices])
         data_block = dask.delayed(_get_block_data)(
             input_path,
             block_index,
             block_slices,
         )
-        # block = da.from_delayed(data_block, shape=block_shape, dtype=data_type)
+        block = da.from_delayed(data_block, shape=block_shape, dtype=data_type)
         for c in range(n_channels):
             dflag = dask.delayed(_save_block)(
-                data_block,
+                block,
                 block_index,
                 block_slices,
                 indexed_dims=indexed_dims,
@@ -106,51 +106,9 @@ def _ometif_to_n5_volume(input_path, output_path,
                 channel=c,
             )
             resolved_dflag = da.from_delayed(dflag, shape=(), dtype=np.uint16)
-            n_saved_blocks = n_saved_blocks + resolved_dflag
+            persisted_blocks.append(resolved_dflag)
 
-    return n_saved_blocks
-
-    # !!!!!!
-    # input_img = da.map_blocks
-    # images = dask_image.imread.imread(input_path+'/*.tif')
-    # volume = images.rechunk(chunk_size)
-
-    # if dtype=='same':
-    #     dtype = volume.dtype
-    # else:
-    #     volume = volume.astype(dtype)
-
-    # store = zarr.N5Store(output_path)
-    # num_slices = volume.shape[0]
-    # chunk_z = chunk_size[2]
-    # ranges = [(c, c+chunk_z if c+chunk_z<num_slices else num_slices) for c in range(0,num_slices,chunk_z)]
-
-    # print(f"  compressor: {compressor}")
-    # print(f"  shape:      {volume.shape}")
-    # print(f"  chunking:   {chunk_size}")
-    # print(f"  dtype:      {dtype}")
-    # print(f"  to path:    {output_path}{data_set}")
-
-    # Create the array container
-    # zarr.create(
-    #         shape=volume.shape,
-    #         chunks=chunk_size,
-    #         dtype=dtype,
-    #         compressor=compressor,
-    #         store=store,
-    #         path=data_set,
-    #         overwrite=overwrite
-    #     )
-
-    # Proceed slab-by-slab through Z so that memory is not overwhelmed
-    # for r in ranges:
-    #     print("Saving slice range", r)
-    #     regions = (slice(r[0], r[1]), slice(None), slice(None))
-    #     slices = volume[regions]
-    #     z = delayed(zarr.Array)(store, path=data_set)
-    #     slices.store(z, regions=regions, lock=False, compute=True)
-
-    # print("Saved n5 volume to", output_path)
+    return da.from_array(persisted_blocks, chunks=(1,))
 
 
 def czyx_to_actual_order(czyx, data, c_index, z_index, y_index, x_index):
@@ -208,7 +166,6 @@ def _save_block(block, block_index, block_coords,
           f'{block_coords}({block.shape}) -> {output_coords}({output_block_data.shape})',
           flush=True)
     output_container[subpath][output_coords] = output_block_data
-    return 1
 
 
 def main():
@@ -276,9 +233,9 @@ def main():
                                             chunk_size=zyx_chunk_size,
                                             zscale=args.z_scale)
 
-    print('!!!!!! PERSISTED_VOLUME FUTURE', persisted_blocks, flush=True)
+    print('Persisted blocks computation', persisted_blocks, flush=True)
     r = client.compute(persisted_blocks).result()
-    print('!!!!!! PERSISTED_VOLUME res', r, flush=True)
+    print('Persisted blocks result', r, flush=True)
 
 
 if __name__ == "__main__":
