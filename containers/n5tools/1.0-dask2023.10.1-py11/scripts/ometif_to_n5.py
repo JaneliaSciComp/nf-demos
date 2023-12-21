@@ -3,6 +3,7 @@
 import argparse
 import dask
 import dask.array as da
+import dask.bag as db
 import numpy as np
 import numcodecs as codecs
 import ome_types
@@ -10,32 +11,15 @@ import time
 import yaml
 import zarr
 
-from dask.diagnostics import ProgressBar
 from dask.distributed import (Client, LocalCluster)
 from flatten_json import flatten
 from tifffile import TiffFile
 
 
-def _create_n5_root(data_path, pixelResolutions=None):
-    try:
-        n5_root = zarr.open_group(store=zarr.N5Store(data_path), mode='a')
-        if (pixelResolutions is not None):
-            pixelResolution = {
-                'unit': 'um',
-                'dimensions': pixelResolutions,
-            }
-        n5_root.attrs.update(pixelResolution=pixelResolution)
-        return n5_root
-    except Exception as e:
-        print(f'Error creating a N5 root: {data_path}', e, flush=True)
-        raise e
-
-
 def _ometif_to_n5_volume(input_path, output_path, 
                          data_set, compressor,
-                         chunk_size=(128,128,128), dtype='same',
-                         zscale=1.0,
-                         overwrite=True):
+                         chunk_size=(128,128,128),
+                         zscale=1.0):
     """
     Convert OME-TIFF into an n5 volume with given chunk size.
     """
@@ -44,16 +28,17 @@ def _ometif_to_n5_volume(input_path, output_path,
             print(f'{input_path} is not an OME-TIFF. ',
                   'This method only supports OME TIFF', flush = True)
             return
-        dims = [d for d in tif.series[0].axes.lower()
-                              .replace('i', 'z')
-                              .replace('s', 'c')]
+        tif_series = tif.series[0]
+        data_shape = tif_series.shape
+        data_shape = (184, 2, 128, 128) # !!!!!!
+        data_type = tif_series.dtype
+        dims = [d for d in tif_series.axes.lower()
+                                .replace('i', 'z')
+                                .replace('s', 'c')]
         indexed_dims = {dim:i for i,dim in enumerate(dims)}
         ome = ome_types.from_xml(tif.ome_metadata)
         scale = { d:getattr(ome.images[0].pixels, f'physical_size_{d}', None)
                   for d in dims}
-        data_type = tif.series[0].dtype
-        data_shape = [getattr(ome.images[0].pixels, f'size_{d}', None)
-                      for d in dims]
         if scale['z'] is None:
             scale['z'] = zscale
 
@@ -62,6 +47,7 @@ def _ometif_to_n5_volume(input_path, output_path,
                         data_shape[indexed_dims['z']],
                         data_shape[indexed_dims['y']],
                         data_shape[indexed_dims['x']])
+
         print(f'Input tiff info - ',
               f'ome: {ome.images[0]},',
               f'dims: {dims} ', 
@@ -72,7 +58,7 @@ def _ometif_to_n5_volume(input_path, output_path,
               flush=True)
 
     # include channel in computing the blocks and for channels use a chunk of 1
-    czyx_chunk_size=(1,) + tuple(chunk_size)
+    czyx_chunk_size=(n_channels,) + tuple(chunk_size)
     print(f'Actual chunk size: {czyx_chunk_size}', flush=True)
     czyx_block_size = np.array(czyx_chunk_size, dtype=int)
     block_size = czyx_to_actual_order(czyx_block_size, np.empty_like(czyx_block_size),
@@ -80,46 +66,49 @@ def _ometif_to_n5_volume(input_path, output_path,
                                       indexed_dims['y'], indexed_dims['x'])
     czyx_nblocks = np.ceil(np.array(volume_shape) / czyx_chunk_size).astype(int)
     nblocks = tuple(czyx_to_actual_order(czyx_nblocks, [0, 0, 0, 0],
-                                         indexed_dims['c'], indexed_dims['z'],
-                                         indexed_dims['y'], indexed_dims['x']))
+                                        indexed_dims['c'], indexed_dims['z'],
+                                        indexed_dims['y'], indexed_dims['x']))
     print(f'{volume_shape} -> {czyx_nblocks} ({nblocks}) blocks', flush=True)
 
-    n5_root = _create_n5_root(output_path, pixelResolutions=[scale['x'],scale['y'],scale['z']])
+    output_container = _create_root_output(output_path,
+                                           pixelResolutions=[scale['x'],
+                                                             scale['y'],
+                                                             scale['z']])
     for c in range(n_channels):
-        channel_data_subpath = f'c{c}/{data_set}'
-        n5_root.require_dataset(channel_data_subpath,
-                                shape=volume_shape[1:],
-                                chunks=chunk_size,
-                                dtype=data_type)
+        output_container.require_dataset(f'c{c}/{data_set}',
+                                         shape=volume_shape[1:],
+                                         chunks=chunk_size,
+                                         dtype=data_type,
+                                         compressor=compressor)
 
     print(f'Saving {nblocks} blocks to {output_path}', flush=True)
 
-    persist_block_futures = []
-
+    n_saved_blocks = 0
     for block_index in np.ndindex(*nblocks):
-        # block_index is (c, z, y, x)
         block_start = block_size * block_index
         block_stop = np.minimum(data_shape, block_start + block_size)
-        block_slices = tuple([slice(start, stop) for start, stop in zip(block_start, block_stop)])
-        block_shape = tuple([s.stop - s.start for s in block_slices])
+        block_slices = tuple([slice(start, stop) 
+                              for start, stop in zip(block_start, block_stop)])
         data_block = dask.delayed(_get_block_data)(
             input_path,
             block_index,
             block_slices,
         )
-        block_data = da.from_delayed(data_block, shape=block_shape, dtype=data_type)
-        dflag = dask.delayed(_save_block)(
-            block_data,
-            block_index,
-            block_slices,
-            indexed_dims=indexed_dims,
-            output_container=n5_root,
-            data_set=data_set
-        )
-        persist_block_futures.append(dflag)
-        # persist_block_futures.append(da.from_delayed(dflag, shape=(), dtype=np.uint16))
+        # block = da.from_delayed(data_block, shape=block_shape, dtype=data_type)
+        for c in range(n_channels):
+            dflag = dask.delayed(_save_block)(
+                data_block,
+                block_index,
+                block_slices,
+                indexed_dims=indexed_dims,
+                output_container=output_container,
+                data_set=data_set,
+                channel=c,
+            )
+            resolved_dflag = da.from_delayed(dflag, shape=(), dtype=np.uint16)
+            n_saved_blocks = n_saved_blocks + resolved_dflag
 
-    return persist_block_futures
+    return n_saved_blocks
 
     # !!!!!!
     # input_img = da.map_blocks
@@ -172,30 +161,51 @@ def czyx_to_actual_order(czyx, data, c_index, z_index, y_index, x_index):
     return data
 
 
+def _create_root_output(data_path, pixelResolutions=None):
+    try:
+        n5_root = zarr.open_group(store=zarr.N5Store(data_path), mode='a')
+        if (pixelResolutions is not None):
+            pixelResolution = {
+                'unit': 'um',
+                'dimensions': pixelResolutions,
+            }
+        n5_root.attrs.update(pixelResolution=pixelResolution)
+        return n5_root
+    except Exception as e:
+        print(f'Error creating a N5 root: {data_path}', e, flush=True)
+        raise e
+
+
 def _get_block_data(image_path, block_index, block_coords):
     print(f'{time.ctime(time.time())} '
         f'Get block: {block_index}, from: {block_coords}',
         flush=True)
     with TiffFile(image_path) as tif:
         data_store = tif.series[0].aszarr()
-        zarr_data = zarr.open(data_store, 'r')
-        block_data = zarr_data[block_coords]
+        image_data = zarr.open(data_store, 'r')
+        block_data = image_data[block_coords]
         return block_data
 
 
 def _save_block(block, block_index, block_coords,
                 indexed_dims=None, output_container=None,
-                data_set='s0'):
-    ch_axis = indexed_dims['c']
-    ch = block_coords[ch_axis].start
-    subpath = f'c{ch}/{data_set}'
+                data_set='s0', channel=0):
+
+    subpath = f'c{channel}/{data_set}'
+    ch_selection = tuple([slice(0,s) if i != indexed_dims['c'] 
+                                     else channel
+                          for i,s in enumerate(block.shape)])
+    output_block_index = tuple([block_index[indexed_dims['z']],
+                                block_index[indexed_dims['y']],
+                                block_index[indexed_dims['x']]])
     output_coords = tuple([block_coords[indexed_dims['z']],
                            block_coords[indexed_dims['y']],
                            block_coords[indexed_dims['x']]])
-    output_block_data = np.squeeze(block, axis=ch_axis)
-    print(f'!!!!!IN SAVE: block INFO {block_index} - coords: {block_coords}, ',
-          f'shape: {block.shape} -> {output_block_data.shape}, subpath: {ch}',
-          f'output_coords: {output_coords}',
+    output_block_data = block[ch_selection]
+
+    print(f'{time.ctime(time.time())} '
+          f'Write: {subpath}:{output_block_index}(ch selection:{ch_selection}):',
+          f'{block_coords}({block.shape}) -> {output_coords}({output_block_data.shape})',
           flush=True)
     output_container[subpath][output_coords] = output_block_data
     return 1
@@ -223,10 +233,6 @@ def main():
     parser.add_argument('--z-scale', dest='z_scale', type=float,
         default=0.42,
         help='Z scale')
-
-    parser.add_argument('--dtype', dest='dtype', type=str,
-        default='same',
-        help='Set the output dtype. Default is the same dtype as the template.')
 
     parser.add_argument('--compression', dest='compression', type=str,
         default='bz2',
@@ -259,9 +265,6 @@ def main():
     else:
         client = Client(LocalCluster())
 
-    pbar = ProgressBar()
-    pbar.register()
-
     # the chunk size input arg is given in x,y,z order
     # so after we extract it from the arg we have to revert it
     # and pass it to the function as z,y,x
@@ -271,12 +274,11 @@ def main():
                                             args.data_set,
                                             compressor,
                                             chunk_size=zyx_chunk_size,
-                                            zscale=args.z_scale,
-                                            dtype=args.dtype)
+                                            zscale=args.z_scale)
 
-    for b in persisted_blocks:
-        r = client.compute(b).result()
-        print('!!!!!! PERSISTED_VOLUME res', r, flush=True)
+    print('!!!!!! PERSISTED_VOLUME FUTURE', persisted_blocks, flush=True)
+    r = client.compute(persisted_blocks).result()
+    print('!!!!!! PERSISTED_VOLUME res', r, flush=True)
 
 
 if __name__ == "__main__":
