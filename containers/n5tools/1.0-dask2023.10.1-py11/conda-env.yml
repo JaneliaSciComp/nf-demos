@@ -1,0 +1,14 @@
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pip
+  - flatten_json
+  - pyyaml
+  - tqdm
+  - scikit-image=0.19
+  - zarr=2.16
+  - pip:
+    - xarray-multiscale
+    - fibsem-tools
+    - ome-types
